@@ -58,7 +58,7 @@ function setupAdminAccordions(){
     let node=heading.nextSibling;
     while(node){const next=node.nextSibling;body.appendChild(node);node=next;}
     heading.remove();details.append(summary,body);
-    if(i===0){panel.appendChild(details);details.style.marginTop='18px';}
+    if(i===0){panel.after(details);}
     else panel.replaceWith(details);
   });
   // Bearbeiten/Ergebnis-Eingabe öffnet automatisch den passenden Bereich.
