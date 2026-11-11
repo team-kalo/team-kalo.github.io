@@ -16,6 +16,18 @@
   .match-card-public .match-actions {display:flex;gap:8px;flex-wrap:wrap;}
   .match-card-public .match-actions button {font-size:12px;padding:9px 10px;}
 }
+
+/* Klappbare Verwaltungsbereiche */
+.admin-accordion{padding:0!important;overflow:hidden}
+.admin-accordion>summary{list-style:none;cursor:pointer;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:750;font-size:18px;user-select:none}
+.admin-accordion>summary::-webkit-details-marker{display:none}
+.admin-accordion>summary::after{content:'›';font-size:27px;line-height:1;color:#eeb64a;transform:rotate(0);transition:transform .18s ease}
+.admin-accordion[open]>summary::after{transform:rotate(90deg)}
+.admin-accordion[open]>summary{border-bottom:1px solid #344653}
+.admin-accordion-body{padding:18px 20px 20px}
+.admin-accordion>summary:hover{background:rgba(255,255,255,.035)}
+.admin-accordion:focus-within>summary{color:#f1c56a}
+@media(max-width:600px){.admin-accordion>summary{padding:15px;font-size:16px}.admin-accordion-body{padding:15px}}
 </style></head><body><header><img src="assets/logo.png" alt="Team Kalo Logo"><div><h1>TEAM KALO</h1><div class="muted">PICKLEBALL LEAGUE · SAISON 2026/27</div><small>Euregio-Sporthalle · Emsdetten</small></div></header><main><div class="tabs" id="tabs"></div><div id="content"></div></main><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css"><script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
 const SUPABASE_URL='https://wtqytkcbbysofiebakzd.supabase.co';const SUPABASE_KEY='sb_publishable_NFAhNLQ0aYAAOpVheW8eaA_tc4aS_xJ';const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);let session=null;let isAdmin=false;let statusMessage='';const KEY='team-kalo-v1';const sample={players:[],matches:[],venues:[],news:[],playoffs:[],phase:'league'};let data=structuredClone(sample);let tab='Übersicht';let selected=null;let editingMatchId=null;let editingVenueId=null;let venuePreviewObjectUrl=null;let editingNewsId=null;let generatedDraft=[];let generatedSettings=null;const $=s=>document.querySelector(s);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const save=()=>{};const uid=()=>crypto.randomUUID();const displayName=p=>p?.nickname||p?.name||'Unbekannt';const photo=p=>p.photo||'https://api.dicebear.com/9.x/initials/svg?seed='+encodeURIComponent(displayName(p));const name=id=>displayName(data.players.find(p=>p.id===id));const fmt=d=>d?new Date(d+'T12:00:00').toLocaleDateString('de-DE'):'–';
 const countryCodes='DE AT CH NL BE FR ES PT IT GB IE DK SE NO FI IS PL CZ SK HU SI HR BA RS ME AL GR TR UA RO BG LT LV EE LU MT CY US CA MX BR AR CL CO PE UY PY BO EC VE CR PA CU DO JM AU NZ JP CN KR IN ZA MA EG NG GH KE IL AE SA TH VN PH ID MY SG PK BD NP'.split(' ');
@@ -31,7 +43,40 @@ function stats(){let map={};data.players.forEach(p=>map[p.id]={...p,w:0,l:0,play
 function formBadges(p){return `<span class="form-strip" aria-label="Letzte Ergebnisse">${(p.form||[]).slice(-5).map(x=>`<span class="form-badge ${x==='W'?'win':'loss'}">${x}</span>`).join('')||'<span class="muted">–</span>'}</span>`}
 function record(p){return `${p.w} Siege · ${p.l} Niederlagen · Sätze ${p.setsWon}:${p.setsLost} · Punkte ${p.pointsWon}:${p.pointsLost}`}
 
-function navigate(t){tab=t;selected=null;render()}function render(){let tabs=['Übersicht','Tabelle','Spieler','Matches','Spielorte','Rekorde','Head-to-Head','Playoffs','Verwaltung'];$('#tabs').innerHTML=tabs.map(t=>`<button class="${t===tab?'active':''}" data-tab="${t}">${t}</button>`).join('');document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>navigate(b.dataset.tab));$('#content').innerHTML=({Übersicht:overview,Tabelle:ranking,Spieler:players,Matches:matches,Spielorte:venuesPage,Rekorde:recordsPage,'Head-to-Head':headToHeadPage,Playoffs:playoffs,Verwaltung:admin})[tab]();wire()}
+
+function setupAdminAccordions(){
+  if(tab!=='Verwaltung'||!isAdmin)return;
+  const root=document.querySelector('#content');if(!root)return;
+  const panels=[...root.querySelectorAll(':scope > .panel')];
+  panels.forEach((panel,i)=>{
+    if(panel.id==='resultPanel')return;
+    const heading=panel.querySelector(':scope > h3');
+    if(!heading)return;
+    const details=document.createElement('details');details.className='panel admin-accordion';
+    const summary=document.createElement('summary');summary.textContent=heading.textContent.trim();
+    const body=document.createElement('div');body.className='admin-accordion-body';
+    let node=heading.nextSibling;
+    while(node){const next=node.nextSibling;body.appendChild(node);node=next;}
+    heading.remove();details.append(summary,body);
+    if(i===0){panel.appendChild(details);details.style.marginTop='18px';}
+    else panel.replaceWith(details);
+  });
+  // Bearbeiten/Ergebnis-Eingabe öffnet automatisch den passenden Bereich.
+  root.addEventListener('click',e=>{
+    const btn=e.target.closest('button');if(!btn)return;
+    let target=null;
+    if(btn.matches('[data-edit-player]'))target='#addPlayer';
+    else if(btn.matches('[data-edit-match]'))target='#matchForm';
+    else if(btn.matches('[data-edit-venue]'))target='#venueForm';
+    else if(btn.matches('[data-edit-news]'))target='#newsForm';
+    else if(btn.matches('[data-result-match]'))target='#resultPanel';
+    if(!target)return;
+    const section=root.querySelector(target)?.closest('details');
+    if(section)section.open=true;
+  },true);
+}
+
+function navigate(t){tab=t;selected=null;render()}function render(){let tabs=['Übersicht','Tabelle','Spieler','Matches','Spielorte','Rekorde','Head-to-Head','Playoffs','Verwaltung'];$('#tabs').innerHTML=tabs.map(t=>`<button class="${t===tab?'active':''}" data-tab="${t}">${t}</button>`).join('');document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>navigate(b.dataset.tab));$('#content').innerHTML=({Übersicht:overview,Tabelle:ranking,Spieler:players,Matches:matches,Spielorte:venuesPage,Rekorde:recordsPage,'Head-to-Head':headToHeadPage,Playoffs:playoffs,Verwaltung:admin})[tab]();setupAdminAccordions();wire()}
 function overview(){let s=stats(),recent=[...data.matches].filter(m=>m.status==='completed').reverse().slice(0,5),upcoming=data.matches.filter(m=>m.status==='scheduled').sort((a,b)=>(a.scheduled_at||a.date).localeCompare(b.scheduled_at||b.date)).slice(0,5);return `${newsFeed()}<div class="grid"><div class="panel"><small>SPIELER</small><h1>${data.players.length}</h1></div><div class="panel"><small>GESPIELTE MATCHES</small><h1>${data.matches.filter(m=>m.status==='completed').length}</h1></div><div class="panel"><small>TABELLENFÜHRER</small><h1>${esc(s[0]?displayName(s[0]):'–')}</h1></div></div><div class="panel"><h2>Nächste Matches</h2>${matchList(upcoming)}</div><div class="panel"><h2>Aktuelle Tabelle</h2>${table(s.slice(0,5))}</div><div class="panel"><h2>Letzte Ergebnisse</h2>${matchList(recent)}</div><p class="muted">11.11.2026 – 01.07.2027 · Einzel · Best of 3 oder 5 · 2 Punkte Vorsprung</p>`}
 
 function table(s){return `<div class="table-scroll"><table><thead><tr><th>#</th><th>Spieler</th><th>Sp</th><th>S</th><th>N</th><th>Sätze</th><th>Punkte</th><th>Form</th></tr></thead><tbody>${s.map((p,i)=>`<tr><td>${i+1}</td><td><span class="player-inline"><img class="avatar" src="${esc(photo(p))}" alt=""><span class="player-name">${esc(displayName(p))} <span class="country-flag">${flag(p.nationality)}</span></span></span></td><td>${p.played}</td><td>${p.w}</td><td>${p.l}</td><td>${p.setsWon}:${p.setsLost}</td><td>${p.pointsWon}:${p.pointsLost}</td><td>${formBadges(p)}</td></tr>`).join('')}</tbody></table></div>`}
