@@ -260,6 +260,7 @@ let newsCroppedBlob=null,newsCropInstance=null,newsCropObjectUrl=null;
 function createDoublesSchedule(opts,slots,ids){
  const old=data.matches.filter(m=>m.stage==='league'&&m.status!=='cancelled');
  const weekly={},daily={},pairs={},teammates={},totals=Object.fromEntries(ids.map(id=>[id,0]));
+ const soloTotals=Object.fromEntries(ids.map(id=>[id,0])),doubleTotals=Object.fromEntries(ids.map(id=>[id,0]));
  for(const m of old){const date=m.date||m.scheduled_at?.slice(0,10);if(!date)continue;
   if(m.status==='scheduled')daily[date]=(daily[date]||0)+1;
   const week=Math.floor((new Date(date+'T12:00:00')-new Date(opts.start+'T12:00:00'))/604800000);
@@ -285,7 +286,17 @@ function createDoublesSchedule(opts,slots,ids){
    for(const arr of candidates){let [a,b,c,d]=arr;const members=arr;
     const opponent=wantDouble?[[a,b],[a,d],[c,b],[c,d]]:[[a,b]];
     const team=wantDouble?[[a,c],[b,d]]:[];
-    const score=members.reduce((sum,id)=>sum+(totals[id]||0)*1500+(weekly[slot.week+'|'+id]||0)*150,0)+opponent.reduce((sum,pr)=>sum+(pairs[pairKey(...pr)]||0)*500,0)+team.reduce((sum,pr)=>sum+(teammates[pairKey(...pr)]||0)*900,0)+(daily[slot.date]||0)*10;
+    // Priorität: Einsätze pro Matchart fair verteilen, danach Gesamtbelastung und Paarungsvielfalt.
+    // Quadratische Kosten bestrafen den dritten Einzel-Einsatz deutlich stärker,
+    // solange andere Spieler noch keinen Einzel-Einsatz erhalten haben.
+    const modeTotals=wantDouble?doubleTotals:soloTotals;
+    const modeFairness=members.reduce((sum,id)=>sum+(2*(modeTotals[id]||0)+1),0);
+    const overallFairness=members.reduce((sum,id)=>sum+(2*(totals[id]||0)+1),0);
+    const score=modeFairness*12000+overallFairness*1800
+      +members.reduce((sum,id)=>sum+(weekly[slot.week+'|'+id]||0)*100,0)
+      +opponent.reduce((sum,pr)=>sum+(pairs[pairKey(...pr)]||0)*350,0)
+      +team.reduce((sum,pr)=>sum+(teammates[pairKey(...pr)]||0)*600,0)
+      +(daily[slot.date]||0)*10;
     choices.push({a,b,c,d,slot,score,opponent,team,members});
    }
   }
@@ -294,7 +305,7 @@ function createDoublesSchedule(opts,slots,ids){
   const best=choices[0],date=best.slot.date,week=best.slot.week;
   games.push({a:best.a,b:best.b,c:best.c||null,d:best.d||null,date,venue_id:opts.venue,best_of:opts.best_of});
   daily[date]=(daily[date]||0)+1;
-  for(const id of best.members){totals[id]++;weekly[week+'|'+id]=(weekly[week+'|'+id]||0)+1}
+  for(const id of best.members){totals[id]++;(wantDouble?doubleTotals:soloTotals)[id]++;weekly[week+'|'+id]=(weekly[week+'|'+id]||0)+1}
   for(const pr of best.opponent)pairs[pairKey(...pr)]=(pairs[pairKey(...pr)]||0)+1;
   for(const pr of best.team)teammates[pairKey(...pr)]=(teammates[pairKey(...pr)]||0)+1;
  }
