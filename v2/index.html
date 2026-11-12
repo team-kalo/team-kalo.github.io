@@ -226,7 +226,7 @@ function stats(mode='gesamt'){
   let teams=matchTeams(m),winner=matchOutcome(m),counts=[0,0],points=[0,0];
   for(let set of m.sets){let x=Number(set[0]),y=Number(set[1]);points[0]+=x;points[1]+=y;counts[x>y?0:1]++}
   teams.forEach((ids,side)=>ids.forEach(id=>{let p=map[id];if(!p)return;p.played++;p.setsWon+=counts[side];p.setsLost+=counts[1-side];p.pointsWon+=points[side];p.pointsLost+=points[1-side];if(side===winner){p.w++;p.form.push('W');if(doubles)p.doubleW++;else p.soloW++}else{p.l++;p.form.push('L');if(doubles)p.doubleL++;else p.soloL++}}));
- });return Object.values(map).sort((a,b)=>b.w-a.w||((b.setsWon-b.setsLost)-(a.setsWon-a.setsLost))||((b.pointsWon-b.pointsLost)-(a.pointsWon-a.pointsLost))||b.setsWon-a.setsWon||displayName(a).localeCompare(displayName(b)))
+ });return Object.values(map).filter(p=>p.active!==false).sort((a,b)=>b.w-a.w||((b.setsWon-b.setsLost)-(a.setsWon-a.setsLost))||((b.pointsWon-b.pointsLost)-(a.pointsWon-a.pointsLost))||b.setsWon-a.setsWon||displayName(a).localeCompare(displayName(b)))
 }
 function winRate(w,l){return w+l?Math.round(w/(w+l)*100)+' %':'–'}
 function formBadges(p){return `<span class="form-strip" aria-label="Letzte Ergebnisse">${(p.form||[]).slice(-5).map(x=>`<span class="form-badge ${x==='W'?'win':'loss'}">${x}</span>`).join('')||'<span class="muted">–</span>'}</span>`}
