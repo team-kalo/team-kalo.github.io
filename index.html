@@ -217,6 +217,7 @@ function createSchedule(opts){
  const start=new Date(opts.start+'T12:00:00');if(isNaN(start))throw Error('Ungültiges Startdatum.');
  for(let i=0;i<opts.weeks*7;i++){let d=new Date(start);d.setDate(start.getDate()+i);if(opts.days.includes(d.getDay()))slots.push({date:dateISO(d),week:Math.floor(i/7)})}
  if(!slots.length)throw Error('Keine erlaubten Spieltage im Zeitraum.');
+ if(opts.gameMode==='double'||opts.gameMode==='mixed')return createDoublesSchedule(opts,slots,ids);
  const old=data.matches.filter(m=>m.stage==='league'&&m.status!=='cancelled'),pairCounts={},weekCounts={},dayCounts={},playerTotals={};
  for(let m of old){if(!isDoubles(m)){let key=pairKey(m.a,m.b);pairCounts[key]=(pairCounts[key]||0)+1;}let date=m.date||m.scheduled_at?.slice(0,10);if(!date)continue;if(m.status==='scheduled')dayCounts[date]=(dayCounts[date]||0)+1;let offset=Math.floor((new Date(date+'T12:00:00')-start)/604800000);if(offset>=0&&offset<opts.weeks)for(let id of matchParticipants(m))weekCounts[offset+'|'+id]=(weekCounts[offset+'|'+id]||0)+1}
  if(slots.reduce((sum,x)=>sum+Math.max(0,opts.maxDay-(dayCounts[x.date]||0)),0)<total)throw Error('Nicht genügend freie Tagesplätze für '+total+' neue Matches (maximal '+opts.maxDay+' pro Tag; bereits angesetzte Matches belegen Plätze).');
@@ -282,8 +283,8 @@ function createDoublesSchedule(opts,slots,ids){
     }
    }
    for(const arr of candidates){let [a,b,c,d]=arr;const members=arr;
-    const opponent=wantDouble?[[a,c],[a,d],[b,c],[b,d]]:[[a,b]];
-    const team=wantDouble?[[a,b],[c,d]]:[];
+    const opponent=wantDouble?[[a,b],[a,d],[c,b],[c,d]]:[[a,b]];
+    const team=wantDouble?[[a,c],[b,d]]:[];
     const score=members.reduce((sum,id)=>sum+(totals[id]||0)*1500+(weekly[slot.week+'|'+id]||0)*150,0)+opponent.reduce((sum,pr)=>sum+(pairs[pairKey(...pr)]||0)*500,0)+team.reduce((sum,pr)=>sum+(teammates[pairKey(...pr)]||0)*900,0)+(daily[slot.date]||0)*10;
     choices.push({a,b,c,d,slot,score,opponent,team,members});
    }
