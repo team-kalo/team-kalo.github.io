@@ -224,7 +224,7 @@ function overview(){let s=stats(),recent=[...data.matches].filter(m=>m.stage==='
 
 let rankingMode='gesamt';
 function table(s){return `<div class="table-scroll"><table class="rank-table"><thead><tr><th>#</th><th>Spieler</th><th>Sp</th><th>S</th><th>N</th><th>Sätze</th><th>Punkte</th><th>Form</th></tr></thead><tbody>${s.map((p,i)=>`<tr><td>${i<3?['🥇','🥈','🥉'][i]:i+1}</td><td><span class="player-inline"><img class="avatar" src="${esc(photo(p))}" alt=""><span class="player-name">${esc(displayName(p))} <span class="country-flag">${flagImage(p.nationality)}</span></span></span></td><td>${p.played}</td><td>${p.w}</td><td>${p.l}</td><td>${p.setsWon}:${p.setsLost}</td><td>${p.pointsWon}:${p.pointsLost}</td><td>${formBadges(p)}</td></tr>`).join('')}</tbody></table></div>`}
-function ranking(){return `<div class="panel"><h2>Ligatabelle</h2><div class="ranking-switch">${[['gesamt','Gesamt'],['einzel','Einzel'],['doppel','Doppel']].map(([k,label])=>`<button type="button" data-ranking="${k}" class="${rankingMode===k?'active':''}">${label}</button>`).join('')}</div><div class="actions" style="margin:0 0 16px"><button type="button" id="shareRanking">📸 Tabelle als Bild teilen</button></div>${table(stats(rankingMode))}</div>`}
+function ranking(){return `<div class="panel"><h2>Ligatabelle</h2><div class="ranking-switch">${[['gesamt','Gesamt'],['einzel','Einzel'],['doppel','Doppel']].map(([k,label])=>`<button type="button" data-ranking="${k}" class="${rankingMode===k?'active':''}">${label}</button>`).join('')}</div>${table(stats(rankingMode))}<div class="actions" style="margin:18px 0 0;justify-content:center"><button type="button" id="shareRanking">📸 Tabelle als Bild teilen</button></div></div>`}
 function players(){if(selected){let p=stats('gesamt',true).find(x=>x.id===selected);if(!p)return '<p>Spieler nicht gefunden.</p>';let detail=(label,value)=>`<div><small>${label}</small><strong>${esc(value||'–')}</strong></div>`;return `<button id="back">← Alle Spieler</button><div class="panel"><div class="profile-top"><img src="${esc(photo(p))}" alt="Profilbild"><div><h2 style="margin-bottom:6px">${esc(displayName(p))}</h2><div class="muted">${esc([p.first_name,p.last_name].filter(Boolean).join(' ')||p.name)}</div><p>${flagImage(p.nationality)} ${esc(p.nationality?countryNames.of(p.nationality):'Nationalität unbekannt')}</p><strong>${esc(record(p))}</strong>${p.active===false?' <span class="tag">Inaktiv</span>':''}</div></div><div class="profile-details">${detail('Vorname',p.first_name)}${detail('Nachname',p.last_name)}${detail('Spitzname',displayName(p))}${detail('Geburtsdatum',p.birth_date?fmt(p.birth_date):'–')}${detail('Größe',p.height_cm?p.height_cm+' cm':'–')}${detail('Spielhand',handLabel(p.playing_hand))}${detail('Rang',playerRank(p))}${extraFields(p).map(f=>detail(esc(f.label),f.value)).join('')}</div><h3>🏆 Siegquoten</h3><div class="stat-triplet">${[['Gesamt',p.w,p.l],['Einzel',p.soloW,p.soloL],['Doppel',p.doubleW,p.doubleL]].map(([label,w,l])=>`<div><small>${label}</small><strong>${winRate(w,l)}</strong><small>${w} Siege · ${l} Niederlagen</small></div>`).join('')}</div>${(()=>{let penalties=data.matches.filter(m=>m.stage==='league'&&m.penalty&&matchOutcome(m)!==null&&matchTeams(m)[1-matchOutcome(m)].includes(p.id));return penalties.length?`<h3>⚠️ Erhaltene Matchstrafen</h3>${penalties.map(m=>`<div class="penalty-highlight"><strong>${esc(m.match_title||'Match vom '+fmt(m.date))}</strong><div>Strafe: ${esc(m.penalty)}</div><small>${fmt(m.date)} · ${esc(matchLabel(m))}</small></div>`).join('')}`:''})()}<h3>🍺🥙 Strafregister</h3>${(()=>{let ds=penaltyDebts().filter(d=>d.debtor===p.id);return ds.length?ds.map(d=>debtCard(d,false)).join(''):'<p class="muted">Keine erfassten Bier- oder Dönerstrafen.</p>'})()}<h3>Letzte 5 Matches · Formkurve</h3>${formBadges(p)}<button type="button" data-h2h-player="${esc(p.id)}">⚔️ Head-to-Head vergleichen</button><h3>Matchhistorie</h3>${matchList(data.matches.filter(m=>matchParticipants(m).includes(p.id)).reverse())}</div>`}return `<h2>Spielerprofile</h2><div class="players-grid">${stats('gesamt',true).map(p=>`<div class="panel player player-card" data-player="${esc(p.id)}" role="button" tabindex="0"><img src="${esc(photo(p))}" alt="Profilbild ${esc(displayName(p))}"><span class="player-name"><strong>${esc(displayName(p))}</strong> <span class="country-flag" aria-label="Nationalität">${flagImage(p.nationality)}</span></span>${p.active===false?'<span class="inactive-mark">Inaktiv</span>':''}</div>`).join('')||'<p class="muted">Noch keine Spieler vorhanden.</p>'}</div>`}
 const kaloRanks=['Gründungsmitglied','Jünger','Praktikant'];
 function playerRank(p){return (p?.custom_fields||[]).find(x=>/^(rang|mitgliedsrang)$/i.test(String(x?.label||'').trim()))?.value||''}
@@ -418,29 +418,60 @@ function resultFields(m){return Array.from({length:Number(m.best_of||3)},(_,i)=>
 
 async function shareRankingImage(){
  const rows=stats(rankingMode),mode={gesamt:'GESAMT',einzel:'EINZEL',doppel:'DOPPEL'}[rankingMode]||'GESAMT';
- const W=1080,pad=65,rowH=75,H=260+Math.max(1,rows.length)*rowH+105;
+ const W=1500,pad=65,rowH=112,H=285+Math.max(1,rows.length)*rowH+100;
  const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;
  const c=canvas.getContext('2d');
- const bg=c.createLinearGradient(0,0,W,H);bg.addColorStop(0,'#1e3546');bg.addColorStop(1,'#0c1722');c.fillStyle=bg;c.fillRect(0,0,W,H);
- c.fillStyle='#eeb64a';c.fillRect(0,0,W,12);
- c.fillStyle='#eeb64a';c.font='bold 24px Arial';c.fillText('TEAM KALO  ·  PICKLEBALL LEAGUE',pad,70);
- c.fillStyle='#fff';c.font='bold 52px Arial';c.fillText('LIGATABELLE',pad,140);
- c.fillStyle='#aab8c3';c.font='24px Arial';c.fillText('SAISON 2026/27  ·  '+mode,pad,180);
- const start=260;
- c.fillStyle='#aab8c3';c.font='bold 19px Arial';
- c.fillText('PLATZ',pad,start-25);c.fillText('SPIELER',160,start-25);
- c.fillText('SP',730,start-25);c.fillText('S',820,start-25);c.fillText('N',895,start-25);c.fillText('SÄTZE',958,start-25);
- const roundRect=(x,y,w,h,r)=>{c.beginPath();c.roundRect(x,y,w,h,r);c.fill()};
- for(let i=0;i<rows.length;i++){
-  const r=rows[i],y=start+i*rowH;
-  c.fillStyle=i%2===0?'#253b4b':'#1b2f3e';roundRect(pad-15,y-12,W-2*pad+30,rowH-8,12);
-  c.fillStyle=i<3?'#eeb64a':'#c9d5dc';c.font='bold 27px Arial';c.fillText(String(i+1).padStart(2,'0'),pad,y+30);
-  c.fillStyle='#fff';c.font='bold 26px Arial';
-  let label=displayName(r);while(c.measureText(label).width>520&&label.length>3)label=label.slice(0,-2)+'…';
-  c.fillText(label,160,y+30);
-  c.font='23px Arial';c.fillStyle='#e0e9ed';c.fillText(String(r.played),730,y+30);c.fillText(String(r.w),820,y+30);c.fillText(String(r.l),895,y+30);c.fillText(r.setsWon+':'+r.setsLost,958,y+30);
- }
- c.fillStyle='#aab8c3';c.font='20px Arial';c.fillText('TEAM KALO  ·  '+new Date().toLocaleDateString('de-DE'),pad,H-45);
+ const bg=c.createLinearGradient(0,0,W,H);bg.addColorStop(0,'#20384a');bg.addColorStop(1,'#0d1925');c.fillStyle=bg;c.fillRect(0,0,W,H);
+ c.fillStyle='#edb64c';c.fillRect(0,0,W,12);
+ c.fillStyle='#f0bd5a';c.font='bold 27px Arial';c.fillText('TEAM KALO  ·  PICKLEBALL LEAGUE',pad,74);
+ c.fillStyle='#fff';c.font='bold 60px Arial';c.fillText('LIGATABELLE',pad,152);
+ c.fillStyle='#aab8c3';c.font='27px Arial';c.fillText('SAISON 2026/27  ·  '+mode,pad,202);
+ const start=290;
+ const cols=[pad,205,780,875,960,1055,1190,1350];
+ c.fillStyle='#b9c8d2';c.font='bold 21px Arial';
+ ['#','SPIELER','SP','S','N','SÄTZE','PUNKTE','FORM'].forEach((v,i)=>c.fillText(v,cols[i],start-24));
+ const rr=(x,y,w,h,r)=>{c.beginPath();c.roundRect(x,y,w,h,r);c.fill()};
+ const load=async url=>{
+  if(!url)return null;
+  try{
+   const img=new Image();img.crossOrigin='anonymous';img.referrerPolicy='no-referrer';
+   img.src=url;await Promise.race([img.decode(),new Promise((_,reject)=>setTimeout(()=>reject(Error('timeout')),4500))]);
+   return img
+  }catch(e){return null}
+ };
+ const drawAvatar=(img,x,y,size,initials)=>{
+  c.save();c.beginPath();c.arc(x+size/2,y+size/2,size/2,0,Math.PI*2);c.clip();
+  if(img){const scale=Math.max(size/img.naturalWidth,size/img.naturalHeight),w=img.naturalWidth*scale,h=img.naturalHeight*scale;c.drawImage(img,x+(size-w)/2,y+(size-h)/2,w,h)}
+  else{c.fillStyle='#39556b';c.fillRect(x,y,size,size);c.fillStyle='#fff';c.textAlign='center';c.font='bold 25px Arial';c.fillText(initials,x+size/2,y+size/2+9);c.textAlign='left'}
+  c.restore();
+ };
+ const drawFlag=(img,code,x,y)=>{
+  if(img){c.save();c.beginPath();c.roundRect(x,y,34,24,3);c.clip();c.drawImage(img,x,y,34,24);c.restore()}
+  else if(/^[A-Z]{2}$/.test(code||'')){c.font='28px Arial';c.fillText([...code].map(ch=>String.fromCodePoint(127397+ch.charCodeAt(0))).join(''),x,y+25)}
+ };
+ const assets=await Promise.all(rows.map(async r=>({
+  avatar:await load(photo(r)),
+  flag:await load(/^[A-Z]{2}$/.test(r.nationality||'')?'https://flagcdn.com/w80/'+r.nationality.toLowerCase()+'.png':null)
+ })));
+ rows.forEach((r,i)=>{
+  const y=start+i*rowH;
+  c.fillStyle=i%2===0?'#293f50':'#1b3040';rr(pad-16,y-13,W-2*pad+32,rowH-9,14);
+  if(i<3){c.fillStyle='#eeb64a';c.fillRect(pad-16,y-13,6,rowH-9)}
+  c.font='bold 34px Arial';c.fillStyle='#f3c76e';c.fillText(i<3?['🥇','🥈','🥉'][i]:String(i+1),cols[0],y+48);
+  drawAvatar(assets[i].avatar,cols[1],y+1,70,displayName(r).slice(0,2).toUpperCase());
+  c.fillStyle='#fff';c.font='bold 27px Arial';let label=displayName(r);
+  while(c.measureText(label).width>380&&label.length>3)label=label.slice(0,-2)+'…';
+  c.fillText(label,cols[1]+85,y+44);
+  drawFlag(assets[i].flag,r.nationality,cols[1]+85,y+53);
+  c.font='26px Arial';c.fillStyle='#e1eaf0';
+  c.fillText(String(r.played),cols[2],y+48);c.fillText(String(r.w),cols[3],y+48);c.fillText(String(r.l),cols[4],y+48);
+  c.fillText(r.setsWon+':'+r.setsLost,cols[5],y+48);
+  c.fillText(r.pointsWon+':'+r.pointsLost,cols[6],y+48);
+  const last=(r.form||[]).slice(-5);
+  c.font='bold 21px Arial';
+  last.forEach((v,j)=>{c.fillStyle=(v===true||v==='W'||v===1)?'#58d49b':'#ef9d9d';c.fillText((v===true||v==='W'||v===1)?'S':'N',cols[7]+j*21,y+48)});
+ });
+ c.fillStyle='#aab8c3';c.font='23px Arial';c.fillText('TEAM KALO  ·  '+new Date().toLocaleDateString('de-DE'),pad,H-45);
  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
  if(!blob)throw Error('Bild konnte nicht erstellt werden.');
  const file=new File([blob],'team-kalo-tabelle.png',{type:'image/png'});
